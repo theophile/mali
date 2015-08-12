@@ -13,6 +13,7 @@
 #include "mali_osk_list.h"
 #include "mali_kernel_common.h"
 #include "mali_uk_types.h"
+#include "mali_pp_scheduler.h"
 
 static u32 pp_counter_src0 = MALI_HW_CORE_NO_COUNTER;      /**< Performance counter 0, MALI_HW_CORE_NO_COUNTER for disabled */
 static u32 pp_counter_src1 = MALI_HW_CORE_NO_COUNTER;      /**< Performance counter 1, MALI_HW_CORE_NO_COUNTER for disabled */
@@ -118,6 +119,8 @@ fail:
 void mali_pp_job_delete(struct mali_pp_job *job)
 {
 #ifdef CONFIG_SYNC
+	/* It is safe to delete the work without flushing. */
+	if (NULL != job->sync_work) _mali_osk_wq_delete_work_nonflush(job->sync_work);
 	if (NULL != job->pre_fence) sync_fence_put(job->pre_fence);
 	if (NULL != job->sync_point) sync_fence_put(job->sync_point->fence);
 #endif
@@ -129,8 +132,14 @@ void mali_pp_job_delete(struct mali_pp_job *job)
 	_mali_osk_free(job->memory_cookies);
 
 #if defined(CONFIG_DMA_SHARED_BUFFER) && !defined(CONFIG_MALI_DMA_BUF_MAP_ON_ATTACH)
+	/* Unmap buffers attached to job */
+	if (0 < job->num_dma_bufs)
+	{
+		mali_dma_buf_unmap_job(job);
+	}
+
 	_mali_osk_free(job->dma_bufs);
-#endif
+#endif /* CONFIG_DMA_SHARED_BUFFER */
 
 	_mali_osk_free(job);
 }
