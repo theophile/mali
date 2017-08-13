@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2010-2013 ARM Limited. All rights reserved.
- * 
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * This confidential and proprietary software may be used only as
+ * authorised by a licensing agreement from ARM Limited
+ * (C) COPYRIGHT 2008-2013 ARM Limited
+ * ALL RIGHTS RESERVED
+ * The entire notice above must be reproduced on all authorised
+ * copies and copies may only be made to the extent permitted
+ * by a licensing agreement from ARM Limited.
  */
 
 /**
@@ -163,7 +163,7 @@ _mali_osk_irq_t *_mali_osk_irq_init( u32 irqnum, _mali_osk_irq_uhandler_t uhandl
 #endif
 #endif
 
-	if (0 != request_irq(irqnum, irq_handler_upper_half, irq_flags, description, irq_object)) {
+	if (0 != request_irq(irqnum, irq_handler_upper_half, IRQF_TRIGGER_LOW, description, irq_object)) {
 		MALI_DEBUG_PRINT(2, ("Unable to install IRQ handler for core '%s'\n", description));
 		kfree(irq_object);
 		return NULL;

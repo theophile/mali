@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2010-2013 ARM Limited. All rights reserved.
- * 
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * This confidential and proprietary software may be used only as
+ * authorised by a licensing agreement from ARM Limited
+ * (C) COPYRIGHT 2008-2013 ARM Limited
+ * ALL RIGHTS RESERVED
+ * The entire notice above must be reproduced on all authorised
+ * copies and copies may only be made to the extent permitted
+ * by a licensing agreement from ARM Limited.
  */
 
 /**
@@ -51,7 +51,7 @@ _mali_osk_errcode_t _mali_osk_wq_init(void)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
 	mali_wq_normal = alloc_workqueue("mali", WQ_UNBOUND, 0);
-	mali_wq_high = alloc_workqueue("mali_high_pri", WQ_HIGHPRI, 0);
+	mali_wq_high = alloc_workqueue("mali_high_pri", WQ_HIGHPRI | WQ_UNBOUND, 0);
 #else
 	mali_wq_normal = create_workqueue("mali");
 	mali_wq_high = create_workqueue("mali_high_pri");
@@ -170,10 +170,14 @@ static void _mali_osk_wq_work_func( struct work_struct *work )
 
 	work_object = _MALI_OSK_CONTAINER_OF(work, mali_osk_wq_work_object_t, work_handle);
 
+#if MALI_LICENSE_IS_GPL
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36)
 	/* We want higher priority than the Dynamic Priority, setting it to the lowest of the RT priorities */
 	if (MALI_TRUE == work_object->high_pri) {
 		set_user_nice(current, -19);
 	}
+#endif
+#endif /* MALI_LICENSE_IS_GPL */
 
 	work_object->handler(work_object->data);
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2011-2013 ARM Limited. All rights reserved.
- * 
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * This confidential and proprietary software may be used only as
+ * authorised by a licensing agreement from ARM Limited
+ * (C) COPYRIGHT 2011-2013 ARM Limited
+ * ALL RIGHTS RESERVED
+ * The entire notice above must be reproduced on all authorised
+ * copies and copies may only be made to the extent permitted
+ * by a licensing agreement from ARM Limited.
  */
 
 #include "mali_pp_job.h"
@@ -16,9 +16,11 @@
 #include "mali_kernel_common.h"
 #include "mali_kernel_core.h"
 #include "mali_dma.h"
+#include "mali_kernel_utilization.h"
 #if defined(CONFIG_MALI400_PROFILING)
 #include "mali_osk_profiling.h"
 #endif
+#include "platform_pmm.h"
 
 /* Number of frame registers on Mali-200 */
 #define MALI_PP_MALI200_NUM_FRAME_REGISTERS ((0x04C/4)+1)
@@ -541,9 +543,9 @@ void mali_pp_update_performance_counters(struct mali_pp_core *parent, struct mal
 #if defined(CONFIG_MALI400_PROFILING)
 	int counter_index = COUNTER_FP_0_C0 + (2 * child->core_id);
 #endif
-
-	if (MALI_HW_CORE_NO_COUNTER != counter_src0) {
-		val0 = mali_hw_core_register_read(&child->hw_core, MALI200_REG_ADDR_MGMT_PERF_CNT_0_VALUE);
+   val0 = mali_hw_core_register_read(&child->hw_core, MALI200_REG_ADDR_MGMT_PERF_CNT_0_VALUE);
+	if (MALI_HW_CORE_NO_COUNTER != counter_src0)
+	{		
 		mali_pp_job_set_perf_counter_value0(job, subjob, val0);
 
 #if defined(CONFIG_MALI400_PROFILING)
@@ -551,14 +553,21 @@ void mali_pp_update_performance_counters(struct mali_pp_core *parent, struct mal
 #endif
 	}
 
-	if (MALI_HW_CORE_NO_COUNTER != counter_src1) {
-		val1 = mali_hw_core_register_read(&child->hw_core, MALI200_REG_ADDR_MGMT_PERF_CNT_1_VALUE);
+   val1 = mali_hw_core_register_read(&child->hw_core, MALI200_REG_ADDR_MGMT_PERF_CNT_1_VALUE);
+	if (MALI_HW_CORE_NO_COUNTER != counter_src1)
+	{		
 		mali_pp_job_set_perf_counter_value1(job, subjob, val1);
 
 #if defined(CONFIG_MALI400_PROFILING)
 		_mali_osk_profiling_report_hw_counter(counter_index + 1, val1);
 #endif
 	}
+	
+	if (MALI_UTILIZATION_BW_CTR_SRC0 == counter_src0
+			&& MALI_UTILIZATION_BW_CTR_SRC1 == counter_src1)
+	{
+		mali_utilization_bw_report_counters(val0, val1);
+	}	
 }
 
 #if MALI_STATE_TRACKING

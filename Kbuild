@@ -1,16 +1,20 @@
 #
-# Copyright (C) 2010-2011 ARM Limited. All rights reserved.
-# 
-# This program is free software and is provided to you under the terms of the GNU General Public License version 2
-# as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
-# 
-# A copy of the licence is included with the program, and can also be obtained from Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+# This confidential and proprietary software may be used only as
+# authorised by a licensing agreement from ARM Limited
+# (C) COPYRIGHT 2007-2011 ARM Limited
+# ALL RIGHTS RESERVED
+# The entire notice above must be reproduced on all authorised
+# copies and copies may only be made to the extent permitted
+# by a licensing agreement from ARM Limited.
 #
 
 # This file is called by the Linux build system.
 
 # set up defaults if not defined by the user
+#MTK port custom Kbuild
+#To Add 1.environment variable
+include $(src)/Kbuild-mtk-custom-env
+
 TIMESTAMP ?= default
 OS_MEMORY_KERNEL_BUFFER_SIZE_IN_MB ?= 16
 USING_GPU_UTILIZATION ?= 1
@@ -21,25 +25,31 @@ MALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED ?= 0
 MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS ?= 0
 MALI_UPPER_HALF_SCHEDULING ?= 1
 MALI_ENABLE_CPU_CYCLES ?= 0
+#ifeq ($(FLAG_MTK_BUILD_SYS),1)
+#DRIVER_DIR=$(MTK_PATH_PLATFORM)/drivers/gpu/mali/mali
+#else
+# Get path to driver source from Linux build system
+DRIVER_DIR=$(src)
+#endif
 
 # For customer releases the Linux Device Drivers will be provided as ARM proprietary and GPL releases:
 # The ARM proprietary product will only include the license/proprietary directory
 # The GPL product will only include the license/gpl directory
-ifeq ($(wildcard $(src)/linux/license/gpl/*),)
-    ccflags-y += -I$(src)/linux/license/proprietary
-    ifeq ($(CONFIG_MALI400_PROFILING),y)
-        $(error Profiling is incompatible with non-GPL license)
-    endif
-    ifeq ($(CONFIG_PM_RUNTIME),y)
-        $(error Runtime PM is incompatible with non-GPL license)
-    endif
-    ifeq ($(CONFIG_DMA_SHARED_BUFFER),y)
-        $(error DMA-BUF is incompatible with non-GPL license)
-    endif
-    $(error Linux Device integration is incompatible with non-GPL license)
-else
-    ccflags-y += -I$(src)/linux/license/gpl
-endif
+#ifeq ($(wildcard $(DRIVER_DIR)/linux/license/gpl/*),)
+#    ccflags-y += -I$(DRIVER_DIR)/linux/license/proprietary
+#    ifeq ($(CONFIG_MALI400_PROFILING),y)
+#        $(error Profiling is incompatible with non-GPL license)
+#    endif
+#    ifeq ($(CONFIG_PM_RUNTIME),y)
+#       $(error Runtime PM is incompatible with non-GPL license)
+#    endif
+#    ifeq ($(CONFIG_DMA_SHARED_BUFFER),y)
+#        $(error DMA-BUF is incompatible with non-GPL license)
+#    endif
+#    $(error Linux Device integration is incompatible with non-GPL license)
+#else
+     ccflags-y += -I$(DRIVER_DIR)/linux/license/gpl
+#endif
 
 mali-y += \
 	linux/mali_osk_atomics.o \
@@ -108,6 +118,10 @@ mali-y += \
 	linux/mali_pmu_power_up_down.o \
 	__malidrv_build_info.o
 
+mali-y += platform/platform.o
+mali-y += platform/platform_pmm.o
+#mali-$(CONFIG_MTK_MET) += platform/platform_met.o
+
 ifneq ($(MALI_PLATFORM_FILES),)
 	mali-y += $(MALI_PLATFORM_FILES:.c=.o)
 endif
@@ -116,7 +130,7 @@ mali-$(CONFIG_MALI400_PROFILING) += linux/mali_ukk_profiling.o
 mali-$(CONFIG_MALI400_PROFILING) += linux/mali_osk_profiling.o
 
 mali-$(CONFIG_MALI400_INTERNAL_PROFILING) += linux/mali_profiling_internal.o timestamp-$(TIMESTAMP)/mali_timestamp.o
-ccflags-$(CONFIG_MALI400_INTERNAL_PROFILING) += -I$(src)/timestamp-$(TIMESTAMP)
+ccflags-$(CONFIG_MALI400_INTERNAL_PROFILING) += -I$(DRIVER_DIR)/timestamp-$(TIMESTAMP)
 
 mali-$(CONFIG_DMA_SHARED_BUFFER) += linux/mali_memory_dma_buf.o
 mali-$(CONFIG_SYNC) += linux/mali_sync.o
@@ -146,16 +160,16 @@ ifeq ($(MALI_UPPER_HALF_SCHEDULING),1)
 	ccflags-y += -DMALI_UPPER_HALF_SCHEDULING
 endif
 
-ccflags-$(CONFIG_MALI400_UMP) += -I$(src)/../../ump/include/ump
+ccflags-$(CONFIG_MALI400_UMP) += -I$(DRIVER_DIR)/../../ump/include/ump
 ccflags-$(CONFIG_MALI400_DEBUG) += -DDEBUG
 
 # Use our defines when compiling
-ccflags-y += -I$(src) -I$(src)/include -I$(src)/common -I$(src)/linux -I$(src)/platform
+ccflags-y += -I$(DRIVER_DIR) -I$(DRIVER_DIR)/include -I$(DRIVER_DIR)/common -I$(DRIVER_DIR)/linux -I$(DRIVER_DIR)/platform
 
 # Get subversion revision number, fall back to only ${MALI_RELEASE_NAME} if no svn info is available
-MALI_RELEASE_NAME=$(shell cat $(src)/.version 2> /dev/null)
+MALI_RELEASE_NAME=$(shell cat $(DRIVER_DIR)/.version 2> /dev/null)
 
-SVN_INFO = (cd $(src); svn info 2>/dev/null)
+SVN_INFO = (cd $(DRIVER_DIR); svn info 2>/dev/null)
 
 ifneq ($(shell $(SVN_INFO) 2>/dev/null),)
 # SVN detected
@@ -166,13 +180,13 @@ CHANGED_REVISION := $(shell $(SVN_INFO) | grep '^Last Changed Rev: ' | cut -d: -
 REPO_URL := $(shell $(SVN_INFO) | grep '^URL: ' | cut -d: -f2- | cut -b2-)
 
 else # SVN
-GIT_REV := $(shell cd $(src); git describe --always 2>/dev/null)
+GIT_REV := $(shell cd $(DRIVER_DIR); git describe --always 2>/dev/null)
 ifneq ($(GIT_REV),)
 # Git detected
 DRIVER_REV := $(MALI_RELEASE_NAME)-$(GIT_REV)
-CHANGE_DATE := $(shell cd $(src); git log -1 --format="%ci")
+CHANGE_DATE := $(shell cd $(DRIVER_DIR); git log -1 --format="%ci")
 CHANGED_REVISION := $(GIT_REV)
-REPO_URL := $(shell cd $(src); git describe --all --always 2>/dev/null)
+REPO_URL := $(shell cd $(DRIVER_DIR); git describe --all --always 2>/dev/null)
 
 else # Git
 # No Git or SVN detected
@@ -184,8 +198,11 @@ endif
 
 ccflags-y += -DSVN_REV_STRING=\"$(DRIVER_REV)\"
 
+#Add staging include for android ..
+ccflags-y += -I$(srctree)/drivers/staging/android
+
 VERSION_STRINGS :=
-VERSION_STRINGS += API_VERSION=$(shell cd $(src); grep "\#define _MALI_API_VERSION" $(FILES_PREFIX)include/linux/mali/mali_utgard_uk_types.h | cut -d' ' -f 3 )
+VERSION_STRINGS += API_VERSION=$(shell cd $(DRIVER_DIR); grep "\#define _MALI_API_VERSION" $(FILES_PREFIX)include/linux/mali/mali_utgard_uk_types.h | cut -d' ' -f 3 )
 VERSION_STRINGS += REPO_URL=$(REPO_URL)
 VERSION_STRINGS += REVISION=$(DRIVER_REV)
 VERSION_STRINGS += CHANGED_REVISION=$(CHANGED_REVISION)
@@ -207,6 +224,17 @@ VERSION_STRINGS += USING_GPU_UTILIZATION=$(USING_GPU_UTILIZATION)
 VERSION_STRINGS += USING_POWER_PERFORMANCE_POLICY=$(CONFIG_POWER_PERFORMANCE_POLICY)
 VERSION_STRINGS += MALI_UPPER_HALF_SCHEDULING=$(MALI_UPPER_HALF_SCHEDULING)
 
+
+
+#MTK port custom Kbuild
+#To Add 1.ccflags-y 2.SRC
+include $(DRIVER_DIR)/Kbuild-mtk-custom-src
+ifeq ($(FLAG_MTK_BUILD_SYS),1)
 # Create file with Mali driver configuration
 $(src)/__malidrv_build_info.c:
 	@echo 'const char *__malidrv_build_info(void) { return "malidrv: $(VERSION_STRINGS)";}' > $(src)/__malidrv_build_info.c
+else
+# Create file with Mali driver configuration
+$(DRIVER_DIR)/__malidrv_build_info.c:
+	@echo 'const char *__malidrv_build_info(void) { return "malidrv: $(VERSION_STRINGS)";}' > $(DRIVER_DIR)/__malidrv_build_info.c
+endif

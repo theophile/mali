@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2010-2013 ARM Limited. All rights reserved.
- * 
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * This confidential and proprietary software may be used only as
+ * authorised by a licensing agreement from ARM Limited
+ * (C) COPYRIGHT 2010-2013 ARM Limited
+ * ALL RIGHTS RESERVED
+ * The entire notice above must be reproduced on all authorised
+ * copies and copies may only be made to the extent permitted
+ * by a licensing agreement from ARM Limited.
  */
 
 #include "mali_kernel_utilization.h"
@@ -14,6 +14,9 @@
 #include "mali_kernel_common.h"
 #include "mali_session.h"
 #include "mali_scheduler.h"
+
+static u32 mali_utilization_bw_sum_active = 0;
+static u32 mali_utilization_bw_sum_completed = 0;
 
 /* Thresholds for GP bound detection. */
 #define MALI_GP_BOUND_GP_UTILIZATION_THRESHOLD 240
@@ -80,6 +83,45 @@ static u32 calculate_window_render_fps(u64 time_period)
 	return ret_val;
 }
 #endif  /* defined(CONFIG_MALI400_POWER_PERFORMANCE_POLICY) */
+
+
+void mali_utilization_bw_report_counters(u32 active, u32 completed)
+{
+	mali_utilization_bw_sum_active    += active;
+	mali_utilization_bw_sum_completed += completed;
+}
+
+static void mali_utilization_bw_reset(void)
+{
+	mali_utilization_bw_sum_active    = 0;
+	mali_utilization_bw_sum_completed = 0;
+}
+
+u32 mali_utilization_bw_get_period(void)
+{
+	u32 ret = 0;
+	u32 completed;
+
+	MALI_DEBUG_PRINT(1, ("Calculating bandwith factor: Active cycles: %u Instructions completed: %u\n",
+				mali_utilization_bw_sum_active, mali_utilization_bw_sum_completed));
+
+	/* Shift down by 16 bits. This, together with the != 0 check below,
+	 * will elimiate samples with a too low number of instructions to be used. */
+	completed = mali_utilization_bw_sum_completed >> 16;
+
+	/* Avoid divide by 0. When there is no data (either because of too few
+	 * samples, or that profiling took reconfigured the counters, just
+	 * return 0. */
+	if (0 != completed)
+	{
+		ret = (mali_utilization_bw_sum_active) / (mali_utilization_bw_sum_completed >> 16);
+	}
+
+	mali_utilization_bw_reset();
+
+	return ret;
+}
+EXPORT_SYMBOL(mali_utilization_bw_get_period);
 
 static void calculate_gpu_utilization(void* arg)
 {

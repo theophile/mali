@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2011-2013 ARM Limited. All rights reserved.
- * 
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * This confidential and proprietary software may be used only as
+ * authorised by a licensing agreement from ARM Limited
+ * (C) COPYRIGHT 2011-2013 ARM Limited
+ * ALL RIGHTS RESERVED
+ * The entire notice above must be reproduced on all authorised
+ * copies and copies may only be made to the extent permitted
+ * by a licensing agreement from ARM Limited.
  */
 
 #include "mali_pp.h"
@@ -19,9 +19,13 @@
 #if defined(CONFIG_DMA_SHARED_BUFFER) && !defined(CONFIG_MALI_DMA_BUF_MAP_ON_ATTACH)
 #include "linux/mali_memory_dma_buf.h"
 #endif
+#include "mali_kernel_utilization.h"
 
-static u32 pp_counter_src0 = MALI_HW_CORE_NO_COUNTER;   /**< Performance counter 0, MALI_HW_CORE_NO_COUNTER for disabled */
-static u32 pp_counter_src1 = MALI_HW_CORE_NO_COUNTER;   /**< Performance counter 1, MALI_HW_CORE_NO_COUNTER for disabled */
+/// static u32 pp_counter_src0 = MALI_HW_CORE_NO_COUNTER;      /**< Performance counter 0, MALI_HW_CORE_NO_COUNTER for disabled */
+/// static u32 pp_counter_src1 = MALI_HW_CORE_NO_COUNTER;      /**< Performance counter 1, MALI_HW_CORE_NO_COUNTER for disabled */
+static u32 pp_counter_src0 = MALI_UTILIZATION_BW_CTR_SRC0;      /**< Performance counter 0, MALI_HW_CORE_NO_COUNTER for disabled */
+static u32 pp_counter_src1 = MALI_UTILIZATION_BW_CTR_SRC1;      /**< Performance counter 1, MALI_HW_CORE_NO_COUNTER for disabled */
+
 static _mali_osk_atomic_t pp_counter_per_sub_job_count; /**< Number of values in the two arrays which is != MALI_HW_CORE_NO_COUNTER */
 static u32 pp_counter_per_sub_job_src0[_MALI_PP_MAX_SUB_JOBS] = { MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER };
 static u32 pp_counter_per_sub_job_src1[_MALI_PP_MAX_SUB_JOBS] = { MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER, MALI_HW_CORE_NO_COUNTER };
@@ -60,15 +64,15 @@ struct mali_pp_job *mali_pp_job_create(struct mali_session_data *session, _mali_
 		perf_counter_flag = mali_pp_job_get_perf_counter_flag(job);
 
 		/* case when no counters came from user space
-		 * so pass the debugfs / DS-5 provided global ones to the job object */
+		 * so pass the debugfs / DS-5 provided global ones to the job object */      
 		if (!((perf_counter_flag & _MALI_PERFORMANCE_COUNTER_FLAG_SRC0_ENABLE) ||
 		      (perf_counter_flag & _MALI_PERFORMANCE_COUNTER_FLAG_SRC1_ENABLE))) {
 			u32 sub_job_count = _mali_osk_atomic_read(&pp_counter_per_sub_job_count);
 
 			/* These counters apply for all virtual jobs, and where no per sub job counter is specified */
 			job->uargs.perf_counter_src0 = pp_counter_src0;
-			job->uargs.perf_counter_src1 = pp_counter_src1;
-
+			job->uargs.perf_counter_src1 = pp_counter_src1;         
+   
 			/* We only copy the per sub job array if it is enabled with at least one counter */
 			if (0 < sub_job_count) {
 				job->perf_counter_per_sub_job_count = sub_job_count;
@@ -209,12 +213,20 @@ u32 mali_pp_job_get_perf_counter_src1(struct mali_pp_job *job, u32 sub_job)
 
 void mali_pp_job_set_pp_counter_global_src0(u32 counter)
 {
-	pp_counter_src0 = counter;
+	if (MALI_HW_CORE_NO_COUNTER == counter)
+	{
+		counter = MALI_UTILIZATION_BW_CTR_SRC0;
+	}
+	pp_counter_src0 = counter;   
 }
 
 void mali_pp_job_set_pp_counter_global_src1(u32 counter)
 {
-	pp_counter_src1 = counter;
+	if (MALI_HW_CORE_NO_COUNTER == counter)
+	{
+		counter = MALI_UTILIZATION_BW_CTR_SRC1;
+	}	     
+	pp_counter_src1 = counter;	
 }
 
 void mali_pp_job_set_pp_counter_sub_job_src0(u32 sub_job, u32 counter)
@@ -232,7 +244,10 @@ void mali_pp_job_set_pp_counter_sub_job_src0(u32 sub_job, u32 counter)
 	}
 
 	/* PS: A change from MALI_HW_CORE_NO_COUNTER to MALI_HW_CORE_NO_COUNTER will inc and dec, result will be 0 change */
-
+	if (MALI_HW_CORE_NO_COUNTER == counter)
+	{
+		counter = MALI_UTILIZATION_BW_CTR_SRC0;
+	}
 	pp_counter_per_sub_job_src0[sub_job] = counter;
 }
 
@@ -251,7 +266,10 @@ void mali_pp_job_set_pp_counter_sub_job_src1(u32 sub_job, u32 counter)
 	}
 
 	/* PS: A change from MALI_HW_CORE_NO_COUNTER to MALI_HW_CORE_NO_COUNTER will inc and dec, result will be 0 change */
-
+	if (MALI_HW_CORE_NO_COUNTER == counter)
+	{
+		counter = MALI_UTILIZATION_BW_CTR_SRC1;
+	}
 	pp_counter_per_sub_job_src1[sub_job] = counter;
 }
 

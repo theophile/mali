@@ -1,11 +1,11 @@
 /**
- * Copyright (C) 2011-2013 ARM Limited. All rights reserved.
- * 
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * This confidential and proprietary software may be used only as
+ * authorised by a licensing agreement from ARM Limited
+ * (C) COPYRIGHT 2011-2013 ARM Limited
+ * ALL RIGHTS RESERVED
+ * The entire notice above must be reproduced on all authorised
+ * copies and copies may only be made to the extent permitted
+ * by a licensing agreement from ARM Limited.
  */
 
 
@@ -29,6 +29,7 @@
 #include <asm/uaccess.h>
 #include <linux/module.h>
 #include <linux/mali/mali_utgard.h>
+#include <linux/proc_fs.h>
 #include "mali_kernel_sysfs.h"
 #if defined(CONFIG_MALI400_INTERNAL_PROFILING)
 #include <linux/slab.h>
@@ -78,6 +79,82 @@ static const char* const mali_power_events[_MALI_MAX_EVENTS] = {
 };
 
 static mali_bool power_always_on_enabled = MALI_FALSE;
+
+#ifdef CONFIG_PROC_FS
+static struct proc_dir_entry *mali_pentry;
+
+static int proc_memoryusage_show(struct seq_file *m, void *v)
+{
+    seq_printf(m, "%u\n", _mali_ukk_report_memory_usage());
+
+    return 0;
+}
+
+static int proc_memoryusage_open(struct inode *inode, struct file *file)
+{
+    return single_open(file, proc_memoryusage_show, NULL);
+}
+
+static const struct file_operations proc_memoryusage_operations = {
+    .open    = proc_memoryusage_open,
+    .read    = seq_read,
+    .llseek  = seq_lseek,
+    .release = single_release,
+};
+
+static int proc_utilization_show(struct seq_file *m, void *v)
+{
+    unsigned long gpu, gp, pp;
+    
+    gpu = ((_mali_ukk_utilization_gp_pp()*100)/256);
+    gp = ((_mali_ukk_utilization_gp()*100)/256);
+    pp = ((_mali_ukk_utilization_pp()*100)/256);
+
+    seq_printf(m, "gpu/gp/pp=%lu/%lu/%lu\n", gpu, gp, pp);
+
+    return 0;
+}
+
+static int proc_utilization_open(struct inode *inode, struct file *file)
+{
+    return single_open(file, proc_utilization_show, NULL);
+}
+
+static const struct file_operations proc_utilization_operations = {
+    .open    = proc_utilization_open,
+    .read    = seq_read,
+    .llseek  = seq_lseek,
+    .release = single_release,
+};
+
+static void proc_mali_register(void)
+{
+    struct proc_dir_entry *mt_elsuspend_entry = NULL;
+    mali_pentry = proc_mkdir("mali", NULL);
+    MALI_DEBUG_PRINT(1, ("[%s] pentry=%p\n", __FUNCTION__, mali_pentry));
+
+    if (!mali_pentry)
+        return;
+     
+    proc_create("memory_usage", 0, mali_pentry, &proc_memoryusage_operations);
+    proc_create("utilization", 0, mali_pentry, &proc_utilization_operations);
+}
+
+
+static void proc_mali_unregister(void)
+{
+    if (!mali_pentry)
+        return;
+
+    remove_proc_entry("memory_usage", mali_pentry);
+    remove_proc_entry("utilization", mali_pentry);
+    remove_proc_entry("mali", NULL);
+    mali_pentry = NULL;
+}
+#else
+#define proc_mali_register() do{}while(0)
+#define proc_mali_unregister() do{}while(0)
+#endif
 
 static int open_copy_private_data(struct inode *inode, struct file *filp)
 {
@@ -837,20 +914,30 @@ static const struct file_operations profiling_events_human_readable_fops = {
 
 #endif
 
-static ssize_t memory_used_read(struct file *filp, char __user *ubuf, size_t cnt, loff_t *ppos)
+static int memory_debugfs_show(struct seq_file *s, void *private_data)
 {
-	char buf[64];
-	size_t r;
-	u32 mem = _mali_ukk_report_memory_usage();
+	seq_printf(s, "%-25s  %-10s  %-10s  %-15s  %-15s  %-10s  %-10s\n"\
+		   "==============================================================================================================\n",
+		   "Name (:bytes)", "pid", "mali_mem", "max_mali_mem",
+		   "external_mem", "ump_mem", "dma_mem");
+	mali_session_memory_tracking(s);
+	return 0;
+}
 
-	r = snprintf(buf, 64, "%u\n", mem);
-	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
+
+static int memory_debugfs_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, memory_debugfs_show, inode->i_private);
 }
 
 static const struct file_operations memory_usage_fops = {
 	.owner = THIS_MODULE,
-	.read = memory_used_read,
+	.open = memory_debugfs_open,
+	.read  = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
 };
+
 
 static ssize_t utilization_gp_pp_read(struct file *filp, char __user *ubuf, size_t cnt, loff_t *ppos)
 {
@@ -1183,6 +1270,11 @@ int mali_sysfs_register(const char *mali_dev_name)
 		/* Debugfs not supported. */
 		mali_debugfs_dir = NULL;
 	} else {
+      /* {MTK add
+       * Add procfs 
+       * }*/
+      proc_mali_register();
+
 		if(NULL != mali_debugfs_dir) {
 			/* Debugfs directory created successfully; create files now */
 			struct dentry *mali_pmu_dir;
@@ -1289,7 +1381,7 @@ int mali_sysfs_register(const char *mali_dev_name)
 				}
 			}
 
-			debugfs_create_file("memory_usage", 0400, mali_debugfs_dir, NULL, &memory_usage_fops);
+			debugfs_create_file("gpu_memory", 0444, mali_debugfs_dir, NULL, &memory_usage_fops);
 
 			debugfs_create_file("utilization_gp_pp", 0400, mali_debugfs_dir, NULL, &utilization_gp_pp_fops);
 			debugfs_create_file("utilization_gp", 0400, mali_debugfs_dir, NULL, &utilization_gp_fops);
@@ -1367,6 +1459,11 @@ int mali_sysfs_register(const char *mali_dev_name)
 
 int mali_sysfs_unregister(void)
 {
+   /* {MTK add
+    * Remove procfs
+    * }*/
+   proc_mali_unregister();
+
 	if(NULL != mali_debugfs_dir) {
 		debugfs_remove_recursive(mali_debugfs_dir);
 	}

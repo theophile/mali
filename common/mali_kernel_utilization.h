@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2010-2013 ARM Limited. All rights reserved.
- * 
- * This program is free software and is provided to you under the terms of the GNU General Public License version 2
- * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- * 
- * A copy of the licence is included with the program, and can also be obtained from Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * This confidential and proprietary software may be used only as
+ * authorised by a licensing agreement from ARM Limited
+ * (C) COPYRIGHT 2010-2013 ARM Limited
+ * ALL RIGHTS RESERVED
+ * The entire notice above must be reproduced on all authorised
+ * copies and copies may only be made to the extent permitted
+ * by a licensing agreement from ARM Limited.
  */
 
 #ifndef __MALI_KERNEL_UTILIZATION_H__
@@ -13,6 +13,15 @@
 
 #include <linux/mali/mali_utgard.h>
 #include "mali_osk.h"
+
+#define MALI_UTILIZATION_BW_CTR_SRC0 (0)  /* Active cycles */
+#define MALI_UTILIZATION_BW_CTR_SRC1 (37) /* Inctructions completed */
+
+void mali_utilization_bw_report_counters(u32 active, u32 completed);
+
+/*
+ */
+u32 mali_utilization_bw_get_period(void);
 
 extern void (*mali_utilization_callback)(struct mali_gpu_utilization_data *data);
 
